@@ -40,13 +40,13 @@ func GenerateTimestamp() string {
 }
 
 func GetSignature(method string, path string, timestamp string, body string) (string, error) {
-	//$data = '<HTTP METHOD> + ”:” + <RELATIVE PATH URL> + “:“ + LowerCase(HexEncode(SHA-256(Minify(<HTTP BODY>)))) + “:“ + <X-TIMESTAMP>';
+	// Hash the minified body
 	hash := sha256.New()
 	hash.Write([]byte(body))
-	hashedPayload := fmt.Sprintf("%x", hash.Sum(nil))
+	hashedPayload := fmt.Sprintf("%x", hash.Sum(nil)) // hex encode and lowercase
 
+	// data = '<HTTP METHOD> + ”:” + <RELATIVE PATH URL> + “:“ + LowerCase(HexEncode(SHA-256(Minify(<HTTP BODY>)))) + “:“ + <X-TIMESTAMP>';
 	data := method + ":" + path + ":" + hashedPayload + ":" + timestamp
-	// fmt.Println("string to sign", data)
 
 	signature, err := GenerateSignature([]byte(data))
 	if err != nil {

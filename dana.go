@@ -83,4 +83,41 @@ func (c *Client) CustomerTopUpDisbursement(ctx context.Context, req RequestCusto
 }
 
 // Refer to this documentation: https://dashboard.dana.id/api-docs/read/121
-// TODO: Create function here
+func (c *Client) CustomerTopUpInquiryStatusDisbursement(ctx context.Context, req RequestCustomerTopUpInquiryStatusDisbursement) (*ResponseCustomerTopUpInquiryStatusDisbursement, error) {
+	var result ResponseCustomerTopUpInquiryStatusDisbursement
+	c.ResponseEntity = &result
+
+	apiResp, err := c.DoRequest(ctx, http.MethodPost, "/v1.0/emoney/topup-status.htm", req, nil)
+
+	if apiResp.RawBody != nil {
+		if err := json.Unmarshal(apiResp.RawBody, &result); err != nil {
+			return &result, err
+		}
+	}
+
+	if err != nil {
+		return &result, err
+	}
+
+	return &result, nil
+}
+
+// Refer to this documentation: https://dashboard.dana.id/api-docs/read/243
+func (c *Client) PaymentGatewayDropInCreateOrder(ctx context.Context, req RequestPaymentGatewayDropInCreateOrder) (*ResponsePaymentGatewayDropInCreateOrder, error) {
+	var result ResponsePaymentGatewayDropInCreateOrder
+	c.ResponseEntity = &result
+
+	apiResp, err := c.DoRequest(ctx, http.MethodPost, "/v1.0/payment-gateway/payment.htm", req, nil)
+
+	if apiResp.RawBody != nil {
+		if err := json.Unmarshal(apiResp.RawBody, &result); err != nil {
+			return &result, err
+		}
+	}
+
+	if err != nil {
+		return &result, err
+	}
+
+	return &result, nil
+}

@@ -87,6 +87,7 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 	var err error
 
 	timestamp := GenerateTimestamp()
+	// timestamp := "2025-04-21T13:08:00+07:00"
 
 	bodyStringify, err := json.Marshal(body)
 	if err != nil {
@@ -103,7 +104,7 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 	// Begin to compose request client
 	client := c.HttpClient
 
-	client.SetDebug(true)
+	client.SetDebug(false)
 
 	req := client.R().
 		SetHeader("X-TIMESTAMP", timestamp).
@@ -143,6 +144,30 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", method)
 	}
+
+	// log.Println("==========")
+	// log.Println("========== DANA API DEBUG (", path, ") ==========")
+	// log.Println("===== REQUEST =====")
+	// log.Printf("Request Details:\nURL Endpoint: %s\nHeader Request: %s\nRequest Body: %s",
+	// 	c.BaseURL.ResolveReference(&url.URL{Path: path}).String(),
+	// 	func() string {
+	// 		flatHeaders := make(map[string]string)
+	// 		for key, values := range req.Header {
+	// 			if len(values) > 0 {
+	// 				flatHeaders[key] = values[0]
+	// 			}
+	// 		}
+	// 		headerJSON, err := json.Marshal(flatHeaders)
+	// 		if err != nil {
+	// 			return fmt.Sprintf("Error marshaling headers to JSON: %v", err)
+	// 		}
+	// 		return string(headerJSON)
+	// 	}(),
+	// 	string(bodyStringify),
+	// )
+	// log.Println("===== RESPONSE =====")
+	// log.Println("Response Body:", string(resp.Body()))
+	// log.Println("==========")
 
 	// Base response wrapper
 	response := &ResponseAPI{
