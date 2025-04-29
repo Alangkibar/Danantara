@@ -2,6 +2,7 @@ package dana
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,104 +15,108 @@ import (
 
 // Client holds the base URL and any necessary authentication tokens.
 type Client struct {
-	HttpClient     *resty.Client
-	BaseURL        *url.URL
-	ResponseEntity interface{}
+	httpClient   *resty.Client
+	merchantID   string
+	clientID     string
+	clientSecret string
+	publicKey    string
+	privateKey   []byte
+	location     *time.Location
+	debug        bool
+}
+
+type ClientConfig struct {
+	MerchantID   string
+	ClientID     string
+	ClientSecret string
+	PublicKey    string
+	PrivateKey   []byte
+	UseSandbox   bool
+	Debug        bool
 }
 
 // NewClient creates a new DANA API client.
-func NewClient(
-	merchantID, clientID, clientSecret, publicKey, privateKey string, environment EnvironmentType,
-) *Client {
-	var baseURL string
-
-	if merchantID == "" {
-		log.Println("DANA: Merchant ID is required")
-		return nil
+func NewClient(conf ClientConfig) (*Client, error) {
+	if conf.MerchantID == "" {
+		return nil, fmt.Errorf("merchant ID is required")
 	}
-	MerchantID = merchantID
 
-	if clientID == "" {
-		log.Println("DANA: Client ID is required")
-		return nil
+	if conf.ClientID == "" {
+		return nil, fmt.Errorf("clientID is required")
 	}
-	ClientID = clientID
 
-	if clientSecret == "" {
-		log.Println("DANA: Client Secret is required")
-		return nil
+	if conf.ClientSecret == "" {
+		return nil, fmt.Errorf("client secret is required")
 	}
-	ClientSecret = clientSecret
 
-	if publicKey == "" {
-		log.Println("DANA: Public Key is required")
-		return nil
+	if conf.PublicKey == "" {
+		return nil, fmt.Errorf("public key is required")
 	}
-	PublicKey = publicKey
 
-	if privateKey == "" {
-		log.Println("DANA: Private Key is required")
-		return nil
+	if conf.PrivateKey == nil {
+		return nil, fmt.Errorf("private key is required")
 	}
-	RsaPrivateKey = []byte(privateKey)
 
 	client := resty.New()
 
-	client.SetTimeout(DefaultRequestTimeout)
+	client.SetTimeout(defaultRequestTimeout)
 	client.SetHeader("Accept", "application/json")
 	client.SetHeader("Content-Type", "application/json")
 
-	if environment == Sandbox {
-		baseURL = Sandbox.BaseUrl()
-	} else if environment == Production {
+	baseURL := Sandbox.BaseUrl()
+	if !conf.UseSandbox {
 		baseURL = Production.BaseUrl()
-	} else {
-		log.Println("DANA: Invalid environment")
-		return nil
 	}
+	client.SetBaseURL(baseURL)
 
-	parsedBaseURL, err := url.Parse(baseURL)
+	// Get the current time in Jakarta time zone (UTC+7)
+	jakartaLoc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
-		log.Println("DANA: Invalid URL:", err)
-		return nil
+		log.Panicf("Error loading Jakarta time zone: %v", err)
 	}
 
 	return &Client{
-		HttpClient: client,
-		BaseURL:    parsedBaseURL,
-	}
+		httpClient:   client,
+		merchantID:   conf.MerchantID,
+		clientID:     conf.ClientID,
+		clientSecret: conf.ClientSecret,
+		publicKey:    conf.PublicKey,
+		privateKey:   conf.PrivateKey,
+		location:     jakartaLoc,
+	}, nil
 }
 
-func (c *Client) DoRequest(ctx context.Context, method string, path string, body interface{}, headers map[string]string) (*ResponseAPI, error) {
+// Deprecated
+func (c *Client) doRequest(ctx context.Context, method string, path string, body interface{}, headers map[string]string) (*ResponseAPI, error) {
 	var resp *resty.Response
 	var err error
 
-	timestamp := GenerateTimestamp()
-	// timestamp := "2025-04-21T13:08:00+07:00"
-
+	timestamp := c.generateTimestamp()
 	bodyStringify, err := json.Marshal(body)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return nil, err
+		if c.debug {
+			fmt.Println("Error:", err)
+		}
+		return nil, fmt.Errorf("error dana client: %w", err)
 	}
 
-	signature, err := GetSignature(method, path, timestamp, string(bodyStringify))
+	signature, err := getSignature(method, path, timestamp, string(bodyStringify))
 	if err != nil {
 		fmt.Println("Error:", err)
-		return nil, err
+		return nil, fmt.Errorf("error dana client: %w", err)
 	}
 
 	// Begin to compose request client
-	client := c.HttpClient
+	client := c.httpClient
 
 	client.SetDebug(false)
 
 	req := client.R().
 		SetHeader("X-TIMESTAMP", timestamp).
 		SetHeader("X-SIGNATURE", signature).
-		SetHeader("X-PARTNER-ID", ClientID).
+		SetHeader("X-PARTNER-ID", c.clientID).
 		SetHeader("X-EXTERNAL-ID", time.Now().Format("02012006")).
-		SetHeader("CHANNEL-ID", MerchantID)
+		SetHeader("CHANNEL-ID", c.merchantID)
 
 	for key, value := range headers {
 		req.SetHeader(key, value)
@@ -123,24 +128,24 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 
 	switch method {
 	case http.MethodGet:
-		resp, err = req.Get(c.BaseURL.ResolveReference(&url.URL{Path: path}).String())
+		resp, err = req.Get(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
 	case http.MethodPost:
 		if body != nil {
 			req = req.SetBody(body)
 		}
-		resp, err = req.Post(c.BaseURL.ResolveReference(&url.URL{Path: path}).String())
+		resp, err = req.Post(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
 	case http.MethodPut:
 		if body != nil {
 			req = req.SetBody(body)
 		}
-		resp, err = req.Put(c.BaseURL.ResolveReference(&url.URL{Path: path}).String())
+		resp, err = req.Put(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
 	case http.MethodPatch:
 		if body != nil {
 			req = req.SetBody(body)
 		}
-		resp, err = req.Patch(c.BaseURL.ResolveReference(&url.URL{Path: path}).String())
+		resp, err = req.Patch(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
 	case http.MethodDelete:
-		resp, err = req.Delete(c.BaseURL.ResolveReference(&url.URL{Path: path}).String())
+		resp, err = req.Delete(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", method)
 	}
@@ -149,7 +154,7 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 	// log.Println("========== DANA API DEBUG (", path, ") ==========")
 	// log.Println("===== REQUEST =====")
 	// log.Printf("Request Details:\nURL Endpoint: %s\nHeader Request: %s\nRequest Body: %s",
-	// 	c.BaseURL.ResolveReference(&url.URL{Path: path}).String(),
+	// 	c.baseURL.ResolveReference(&url.URL{Path: path}).String(),
 	// 	func() string {
 	// 		flatHeaders := make(map[string]string)
 	// 		for key, values := range req.Header {
@@ -205,15 +210,102 @@ func (c *Client) DoRequest(ctx context.Context, method string, path string, body
 			}, err
 		}
 
-		code := danaErr.Code
-		return &ResponseAPI{
-			StatusCode:   resp.StatusCode(),
-			RawBody:      resp.Body(),
-			Error:        &danaErr,
-			ResponseCode: code,
-			CodeInfo:     GetDanaResponseInfo(code),
-		}, &danaErr
+		// code := danaErr.Code
+		// return &ResponseAPI{
+		// 	StatusCode:   resp.StatusCode(),
+		// 	RawBody:      resp.Body(),
+		// 	Error:        &danaErr,
+		// 	ResponseCode: code,
+		// 	CodeInfo:     GetDanaResponseInfo(code),
+		// }, &danaErr
+		return nil, &Error{
+			Code:    danaErr.Code,
+			Message: danaErr.Message,
+		}
 	}
 
 	return response, nil
+}
+
+func (c *Client) generateTimestamp() string {
+	currentTime := time.Now().In(c.location)
+
+	// Format the time according to the specified format
+	timestamp := currentTime.Format("2006-01-02T15:04:05+07:00")
+
+	return timestamp
+}
+
+func (c *Client) prepareHttpRequest() *resty.Request {
+	client := c.httpClient.R().
+		SetHeader("Accept", "application/json").
+		SetHeader("Content-Type", "application/json").
+		SetHeader("X-PARTNER-ID", c.clientID).
+		SetHeader("X-EXTERNAL-ID", time.Now().Format("02012006")).
+		SetHeader("CHANNEL-ID", c.merchantID)
+
+	return client
+}
+
+func (c *Client) prepareHeaders(method, path string, body interface{}) (map[string]string, error) {
+	timestamp := c.generateTimestamp()
+	bodyStringify, err := json.Marshal(body)
+	if err != nil {
+		if c.debug {
+			fmt.Println("Error:", err)
+		}
+		return nil, fmt.Errorf("error dana client: %w", err)
+	}
+
+	signature, err := c.getSignature(method, path, timestamp, string(bodyStringify))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return nil, fmt.Errorf("error dana client: %w", err)
+	}
+
+	headers := make(map[string]string)
+	headers["X-TIMESTAMP"] = timestamp
+	headers["X-SIGNATURE"] = signature
+	headers["X-PARTNER-ID"] = c.clientID
+	headers["X-EXTERNAL-ID"] = time.Now().Format("02012006")
+	headers["CHANNEL-ID"] = c.merchantID
+
+	return headers, nil
+}
+
+func (c *Client) getSignature(method string, path string, timestamp string, body string) (string, error) {
+	// Hash the minified body
+	hash := sha256.New()
+	hash.Write([]byte(body))
+	hashedPayload := fmt.Sprintf("%x", hash.Sum(nil)) // hex encode and lowercase
+
+	// data = '<HTTP METHOD> + ”:” + <RELATIVE PATH URL> + “:“ + LowerCase(HexEncode(SHA-256(Minify(<HTTP BODY>)))) + “:“ + <X-TIMESTAMP>';
+	data := method + ":" + path + ":" + hashedPayload + ":" + timestamp
+
+	signature, err := generateSignature([]byte(data), c.privateKey)
+	if err != nil {
+		fmt.Println("signature generation error", err)
+		return "", err
+	}
+
+	return signature, nil
+}
+
+func wrapError(resp *resty.Response) error {
+	var danaErr Error
+	if err := json.Unmarshal(resp.Body(), &danaErr); err != nil {
+		if resp.StatusCode() == http.StatusGatewayTimeout {
+			return &Error{
+				Code:    danaErr.Code,
+				Message: danaErr.Message,
+			}
+		}
+
+		return err
+	}
+
+	return &Error{
+		Code:    danaErr.Code,
+		Message: danaErr.Message,
+	}
 }

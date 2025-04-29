@@ -39,26 +39,8 @@ func GenerateTimestamp() string {
 	return timestamp
 }
 
-func GetSignature(method string, path string, timestamp string, body string) (string, error) {
-	// Hash the minified body
-	hash := sha256.New()
-	hash.Write([]byte(body))
-	hashedPayload := fmt.Sprintf("%x", hash.Sum(nil)) // hex encode and lowercase
-
-	// data = '<HTTP METHOD> + ”:” + <RELATIVE PATH URL> + “:“ + LowerCase(HexEncode(SHA-256(Minify(<HTTP BODY>)))) + “:“ + <X-TIMESTAMP>';
-	data := method + ":" + path + ":" + hashedPayload + ":" + timestamp
-
-	signature, err := GenerateSignature([]byte(data))
-	if err != nil {
-		fmt.Println("signature generation error", err)
-		return "", err
-	}
-
-	return signature, nil
-}
-
-func GenerateSignature(data []byte) (string, error) {
-	signer, err := parsePrivateKey(RsaPrivateKey)
+func generateSignature(data, key []byte) (string, error) {
+	signer, err := parsePrivateKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -125,7 +107,7 @@ func (r *rsaPrivateKey) Sign(data []byte) ([]byte, error) {
 
 // These response code mapping refer to DANA API Documentation
 // https://dashboard.dana.id/api-docs/read/107
-var DanaResponseCodeMap = map[string]ResponseCodeInfo{
+var danaResponseCodeMap = map[string]ResponseCodeInfo{
 	"2003700":    {"2003700", "Successful", "Success to be processed", "Mark process as Success"},
 	"4003700":    {"4003700", "Bad Request", "General request failed error", "Retry request with proper parameter"},
 	"4003701":    {"4003701", "Invalid Field Format", "Invalid format for certain field", "Retry request with proper parameter"},
@@ -150,8 +132,8 @@ var DanaResponseCodeMap = map[string]ResponseCodeInfo{
 }
 
 func GetDanaResponseInfo(code string) ResponseCodeInfo {
-	if val, ok := DanaResponseCodeMap[code]; ok {
+	if val, ok := danaResponseCodeMap[code]; ok {
 		return val
 	}
-	return DanaResponseCodeMap["UNEXPECTED"]
+	return danaResponseCodeMap["UNEXPECTED"]
 }

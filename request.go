@@ -2,6 +2,14 @@ package dana
 
 // RequestCustomerTopUpDisbursement: Customer Top Up Disbursement
 type RequestCustomerTopUpDisbursement struct {
+	PartnerReferenceNo string
+	CustomerNumber     string
+	Amount             Currency
+	FeeAmount          Currency
+	AdditionalInfo     RequestCustomerTopUpDisbursementAdditionalInfo
+}
+
+type requestCustomerTopUpDisbursement struct {
 	PartnerReferenceNo string                                         `json:"partnerReferenceNo"`
 	CustomerNumber     string                                         `json:"customerNumber"`
 	Amount             RequestCustomerTopUpDisbursementAmount         `json:"amount"`
@@ -37,9 +45,21 @@ type RequestCustomerTopUpInquiryStatusDisbursement struct {
 
 type RequestPaymentGatewayDropInCreateOrder struct {
 	PartnerReferenceNo string                       `json:"partnerReferenceNo"`           // Mandatory, max 64
-	MerchantId         string                       `json:"merchantId"`                   // Mandatory, max 64
 	SubMerchantId      *string                      `json:"subMerchantId,omitempty"`      // Optional, max 32
 	Amount             PaymentGatewayAmount         `json:"amount"`                       // Mandatory
+	ExternalStoreId    *string                      `json:"externalStoreId,omitempty"`    // Optional, max 64
+	ValidUpTo          *string                      `json:"validUpTo,omitempty"`          // Optional, max 25, format: YYYY-MM-DDTHH:mm:ss+07:00
+	DisabledPayMethods *string                      `json:"disabledPayMethods,omitempty"` // Optional, max 64
+	URLParams          []PaymentGatewayNotifyURL    `json:"urlParams"`                    // Mandatory
+	PayOptionDetails   *PaymentGatewayPayOption     `json:"payOptionDetails,omitempty"`   // Conditional
+	AdditionalInfo     PaymentGatewayAdditionalInfo `json:"additionalInfo"`               // Optional
+}
+
+type requestPaymentGatewayDropInCreateOrder struct {
+	PartnerReferenceNo string                       `json:"partnerReferenceNo"`           // Mandatory, max 64
+	MerchantId         string                       `json:"merchantId"`                   // Mandatory, max 64
+	SubMerchantId      *string                      `json:"subMerchantId,omitempty"`      // Optional, max 32
+	Amount             Currency                     `json:"amount"`                       // Mandatory
 	ExternalStoreId    *string                      `json:"externalStoreId,omitempty"`    // Optional, max 64
 	ValidUpTo          *string                      `json:"validUpTo,omitempty"`          // Optional, max 25, format: YYYY-MM-DDTHH:mm:ss+07:00
 	DisabledPayMethods *string                      `json:"disabledPayMethods,omitempty"` // Optional, max 64
@@ -51,6 +71,22 @@ type RequestPaymentGatewayDropInCreateOrder struct {
 type PaymentGatewayAmount struct {
 	Value    string `json:"value"`    // Value of the transaction
 	Currency string `json:"currency"` // ISO currency code
+}
+
+type Currency struct {
+	Value    string `json:"value"`
+	Currency string `json:"currency"`
+}
+
+func NewCurrency(value string, currency string) Currency {
+	return Currency{
+		Value:    value,
+		Currency: currency,
+	}
+}
+
+func NewIDRCurrency(value string) Currency {
+	return NewCurrency(value, "IDR")
 }
 
 type PaymentGatewayNotifyURL struct {

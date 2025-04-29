@@ -114,7 +114,6 @@ func UATScenario1(ctx context.Context, danaClient *dana.Client) {
 			Value:    "0.00",
 			Currency: "IDR",
 		},
-		TransactionDate: dana.GenerateTimestamp(),
 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
 		},
@@ -452,11 +451,11 @@ func UATScenario4(ctx context.Context, danaClient *dana.Client) {
 	// 	CustomerNumber:     phone_number,
 	// 	Amount: dana.RequestCustomerTopUpDisbursementAmount{
 	// 		Value:    fmt.Sprintf("%.2f", float64(amount)),
-	// 		Currency: "IDR",
+	// 		currency: "IDR",
 	// 	},
 	// 	FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
 	// 		Value:    "0.00",
-	// 		Currency: "IDR",
+	// 		currency: "IDR",
 	// 	},
 	// 	TransactionDate: dana.GenerateTimestamp(),
 	// 	AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
@@ -485,15 +484,8 @@ func UATScenario4(ctx context.Context, danaClient *dana.Client) {
 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
 		PartnerReferenceNo: uuid,
 		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
+		Amount:             dana.NewIDRCurrency(fmt.Sprintf("%.2f", float64(amount))),
+		FeeAmount:          dana.NewIDRCurrency("0.00"),
 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
 		},
