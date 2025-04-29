@@ -46,12 +46,12 @@ type ResponseCustomerTopUpInquiryStatusDisbursement struct {
 }
 
 type ResponsePaymentGatewayDropInCreateOrder struct {
-	ResponseCode       string                            `json:"responseCode"`             // Mandatory, max 7
-	ResponseMessage    string                            `json:"responseMessage"`          // Mandatory, max 150
-	ReferenceNo        *string                           `json:"referenceNo,omitempty"`    // Conditional, max 64
-	PartnerReferenceNo string                            `json:"partnerReferenceNo"`       // Mandatory, max 64
-	WebRedirectURL     *string                           `json:"webRedirectUrl,omitempty"` // Conditional, max 2048
-	AdditionalInfo     *PaymentGatewayAdditionalResponse `json:"additionalInfo,omitempty"` // Optional object, with conditional field
+	ResponseCode       string                           `json:"responseCode"`             // Mandatory, max 7
+	ResponseMessage    string                           `json:"responseMessage"`          // Mandatory, max 150
+	ReferenceNo        string                           `json:"referenceNo,omitempty"`    // Conditional, max 64
+	PartnerReferenceNo string                           `json:"partnerReferenceNo"`       // Mandatory, max 64
+	WebRedirectURL     string                           `json:"webRedirectUrl,omitempty"` // Conditional, max 2048
+	AdditionalInfo     PaymentGatewayAdditionalResponse `json:"additionalInfo,omitempty"` // Optional object, with conditional field
 }
 
 type PaymentGatewayAdditionalResponse struct {
