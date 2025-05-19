@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/alangkibar/dana"
 	"github.com/google/uuid"
@@ -20,7 +19,19 @@ var (
 
 func main() {
 
-	danaClient := dana.NewClient(MerchantID, ClientID, ClientSecret, PublicKey, PrivateKey, dana.Sandbox)
+	danaClient, err := dana.NewClient(dana.ClientConfig{
+		MerchantID:   MerchantID,
+		ClientID:     ClientID,
+		ClientSecret: ClientSecret,
+		PublicKey:    PublicKey,
+		PrivateKey:   []byte(PrivateKey),
+		UseSandbox:   true,
+		Debug:        true,
+	})
+
+	if err != nil {
+		log.Fatalf("Failed to initiate DANA client: %v", err)
+	}
 
 	ctx := context.Background()
 
@@ -46,26 +57,25 @@ func main() {
 }
 
 func PaymentGateway(ctx context.Context, danaClient *dana.Client) {
-	userID := uuid.NewString()
-	uuid := uuid.NewString()
+	partnerRefNo := uuid.NewString()
+	externalUserID := uuid.NewString()
 	amount := 2000
 
-	// InquiryCustomerTopUpDisbursement
 	req := dana.RequestPaymentGatewayDropInCreateOrder{
-		PartnerReferenceNo: uuid,
-		Amount: dana.PaymentGatewayAmount{
+		PartnerReferenceNo: partnerRefNo,
+		Amount: dana.Currency{
 			Value:    fmt.Sprintf("%.2f", float64(amount)),
 			Currency: "IDR",
 		},
-		MerchantId: MerchantID,
+		// MerchantId is not needed here because the client sets it internally
 		URLParams: []dana.PaymentGatewayNotifyURL{
 			{
-				URL:        "https://example.com/notify",
+				URL:        "http://demo.localplace.id/api/v1/webhooks/dana",
 				Type:       "NOTIFICATION",
 				IsDeeplink: "N",
 			},
 			{
-				URL:        "https://example.com/notify",
+				URL:        "http://localhost",
 				Type:       "PAY_RETURN",
 				IsDeeplink: "N",
 			},
@@ -74,7 +84,7 @@ func PaymentGateway(ctx context.Context, danaClient *dana.Client) {
 			Order: &dana.PaymentGatewayOrderInfo{
 				OrderTitle: "Payment Gateway Order",
 				Buyer: dana.PaymentGatewayBuyerInfo{
-					ExternalUserID: userID,
+					ExternalUserID: externalUserID,
 				},
 			},
 			MCC: "5732",
@@ -88,1413 +98,1404 @@ func PaymentGateway(ctx context.Context, danaClient *dana.Client) {
 
 	resp, err := danaClient.PaymentGatewayDropInCreateOrder(ctx, req)
 	if err != nil {
-		log.Fatalln(resp)
+		log.Fatalf("PaymentGatewayDropInCreateOrder failed: %v", err)
 	}
 
-	log.Println("PaymentGatewayDropInCreateOrder Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
+	log.Printf("PaymentGatewayDropInCreateOrder Response: %+v\n", resp)
 }
 
-func UATScenario1(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Successfully doing customer top up
-
-	uuid := uuid.NewString()
-	phone_number := "62811742234"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario2(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to top up because merchant deposit is insufficient
-
-	uuid := uuid.NewString()
-	phone_number := "6281298055129"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario3a(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Gagal mendapatkan response Top Up (Timeout) yang kemudian status transaksinya didapatkan melalui H+1 settlement file setelah tetap tidak mendapatkan response pada retry mechanism dan inquiry status
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628551005454"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpInquiryStatusDisbursement
-	// reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
-	// 	OriginalPartnerReferenceNo: uuid,
-	// 	ServiceCode: "38",
-	// }
-
-	// respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
-	// EndCustomerTopUpInquiryStatusDisbursement
-}
-
-func UATScenario3b(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Gagal mendapatkan response Top Up (Timeout) yang kemudian status transaksinya didapatkan melalui H+1 settlement file setelah tetap tidak mendapatkan response pada retry mechanism dan inquiry status
-
-	var (
-		respTopUp       *dana.ResponseCustomerTopUpDisbursement
-		respTopUpStatus *dana.ResponseCustomerTopUpInquiryStatusDisbursement
-		err             error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628551005454"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpInquiryStatusDisbursement
-	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
-		OriginalPartnerReferenceNo: uuid,
-		ServiceCode:                "XY",
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
-		if err == nil {
-			log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
-	// EndCustomerTopUpInquiryStatusDisbursement
-}
-
-func UATScenario4(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status is obtained through a retry process (idempotent)
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := "72a3375f-a56d-447d-8e31-78f6bde21831"
-	phone_number := "628996647676"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	// req := dana.RequestAccountInquiryTopUpDisbursement{
-	// 	PartnerReferenceNo: uuid,
-	// 	CustomerNumber:     phone_number,
-	// 	Amount: dana.RequestCustomerTopUpDisbursementAmount{
-	// 		Value:    fmt.Sprintf("%.2f", float64(amount)),
-	// 		Currency: "IDR",
-	// 	},
-	// 	FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-	// 		Value:    "0.00",
-	// 		Currency: "IDR",
-	// 	},
-	// 	TransactionDate: dana.GenerateTimestamp(),
-	// 	AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-	// 		FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-	// 	},
-	// }
-
-	// resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	// if err != nil {
-	// 	log.Fatalln(resp)
-	// }
-
-	// log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario5(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Successful transaction)
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := "7f554eed-69fe-451d-9d79-5c40539e425d"
-	phone_number := "6281322245545"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpInquiryStatusDisbursement
-	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
-		OriginalPartnerReferenceNo: uuid,
-		ServiceCode:                "38",
-	}
-
-	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
-	// EndCustomerTopUpInquiryStatusDisbursement
-}
-
-func UATScenario6a(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Transaction failed)
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "6281298055138"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpInquiryStatusDisbursement
-	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
-		OriginalPartnerReferenceNo: uuid,
-		ServiceCode:                "38",
-	}
-
-	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
-	// EndCustomerTopUpInquiryStatusDisbursement
-}
-
-func UATScenario6b(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Transaction failed)
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628521470963"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpInquiryStatusDisbursement
-	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
-		OriginalPartnerReferenceNo: uuid,
-		ServiceCode:                "38",
-	}
-
-	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
-	// EndCustomerTopUpInquiryStatusDisbursement
-}
-
-func UATScenario7(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to make account inquiry on blocked account (frozen account)
-	uuid := uuid.NewString()
-	phone_number := "628123456667"
-	amount := 1
-
-	// AccountInquiryTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
-	// End AccountInquiryTopUpDisbursement
-}
-
-func UATScenario8a(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to Top Up on a blocked account (frozen account)
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628996647679"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario8b(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to make account inquiry on unregistered account
-	uuid := uuid.NewString()
-	phone_number := "628152768647"
-	amount := 1
-
-	// AccountInquiryTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
-	// End AccountInquiryTopUpDisbursement
-}
-
-func UATScenario9(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to make account inquiry on unregistered account
-	uuid := uuid.NewString()
-	phone_number := "62811742234"
-	amount := 21000000
-
-	// AccountInquiryTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
-	// End AccountInquiryTopUpDisbursement
-}
-
-func UATScenario10(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to Top Up on a blocked account (frozen account)
-
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "6287825574103"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario11a(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Any Services
-
-	uuid := uuid.NewString()
-	phone_number := "6287720766990"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-}
-
-func UATScenario12(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Successfully Top Up to make inconsistent requests
-
-	uuid := uuid.NewString()
-	phone_number := "6287720766990"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	reqTopUp2 := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)+1),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	respTopUp2, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp2)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp2, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario13(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Failed to get top up status due to internal server error
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628551008794"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario14(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Getting an abnormal response
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628551001237"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
-
-func UATScenario15(ctx context.Context, danaClient *dana.Client) {
-	// Scenario Name: Getting an abnormal response
-	var (
-		respTopUp *dana.ResponseCustomerTopUpDisbursement
-		err       error
-	)
-
-	uuid := uuid.NewString()
-	phone_number := "628121111111"
-	amount := 1
-
-	// InquiryCustomerTopUpDisbursement
-	req := dana.RequestAccountInquiryTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
-	if err != nil {
-		log.Fatalln(resp)
-	}
-
-	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
-	// End InquiryCustomerTopUpDisbursement
-
-	// CustomerTopUpDisbursement
-	// Retry intervals
-	retryIntervals := []time.Duration{
-		5 * time.Second,
-		10 * time.Second,
-		20 * time.Second,
-		40 * time.Second,
-		60 * time.Second,
-	}
-
-	reqTopUp := dana.RequestCustomerTopUpDisbursement{
-		PartnerReferenceNo: uuid,
-		CustomerNumber:     phone_number,
-		Amount: dana.RequestCustomerTopUpDisbursementAmount{
-			Value:    fmt.Sprintf("%.2f", float64(amount)),
-			Currency: "IDR",
-		},
-		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
-			Value:    "0.00",
-			Currency: "IDR",
-		},
-		TransactionDate: dana.GenerateTimestamp(),
-		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
-			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
-		},
-	}
-
-	for i, interval := range retryIntervals {
-		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
-		if err == nil {
-			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
-			break
-		}
-
-		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
-		select {
-		case <-ctx.Done():
-			log.Println("Context canceled or deadline exceeded, aborting retries.")
-			return
-		case <-time.After(interval):
-			// continue to next retry
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("Final attempt failed: %v\n", err)
-	}
-
-	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
-	// EndCustomerTopUpDisbursement
-}
+// func UATScenario1(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Successfully doing customer top up
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "62811742234"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario2(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to top up because merchant deposit is insufficient
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "6281298055129"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario3a(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Gagal mendapatkan response Top Up (Timeout) yang kemudian status transaksinya didapatkan melalui H+1 settlement file setelah tetap tidak mendapatkan response pada retry mechanism dan inquiry status
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628551005454"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpInquiryStatusDisbursement
+// 	// reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
+// 	// 	OriginalPartnerReferenceNo: uuid,
+// 	// 	ServiceCode: "38",
+// 	// }
+
+// 	// respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
+// 	// if err != nil {
+// 	// 	log.Fatalln(err)
+// 	// }
+// 	// log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
+// 	// EndCustomerTopUpInquiryStatusDisbursement
+// }
+
+// func UATScenario3b(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Gagal mendapatkan response Top Up (Timeout) yang kemudian status transaksinya didapatkan melalui H+1 settlement file setelah tetap tidak mendapatkan response pada retry mechanism dan inquiry status
+
+// 	var (
+// 		respTopUp       *dana.ResponseCustomerTopUpDisbursement
+// 		respTopUpStatus *dana.ResponseCustomerTopUpInquiryStatusDisbursement
+// 		err             error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628551005454"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpInquiryStatusDisbursement
+// 	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
+// 		OriginalPartnerReferenceNo: uuid,
+// 		ServiceCode:                "XY",
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
+// 	// EndCustomerTopUpInquiryStatusDisbursement
+// }
+
+// func UATScenario4(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status is obtained through a retry process (idempotent)
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := "72a3375f-a56d-447d-8e31-78f6bde21831"
+// 	phone_number := "628996647676"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	// req := dana.RequestAccountInquiryTopUpDisbursement{
+// 	// 	PartnerReferenceNo: uuid,
+// 	// 	CustomerNumber:     phone_number,
+// 	// 	Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 	// 		Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 	// 		currency: "IDR",
+// 	// 	},
+// 	// 	FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 	// 		Value:    "0.00",
+// 	// 		currency: "IDR",
+// 	// 	},
+// 	// 	TransactionDate: dana.GenerateTimestamp(),
+// 	// 	AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 	// 		FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 	// 	},
+// 	// }
+
+// 	// resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	// if err != nil {
+// 	// 	log.Fatalln(resp)
+// 	// }
+
+// 	// log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount:             dana.NewIDRCurrency(fmt.Sprintf("%.2f", float64(amount))),
+// 		FeeAmount:          dana.NewIDRCurrency("0.00"),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario5(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Successful transaction)
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := "7f554eed-69fe-451d-9d79-5c40539e425d"
+// 	phone_number := "6281322245545"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpInquiryStatusDisbursement
+// 	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
+// 		OriginalPartnerReferenceNo: uuid,
+// 		ServiceCode:                "38",
+// 	}
+
+// 	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+// 	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
+// 	// EndCustomerTopUpInquiryStatusDisbursement
+// }
+
+// func UATScenario6a(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Transaction failed)
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "6281298055138"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpInquiryStatusDisbursement
+// 	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
+// 		OriginalPartnerReferenceNo: uuid,
+// 		ServiceCode:                "38",
+// 	}
+
+// 	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+// 	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
+// 	// EndCustomerTopUpInquiryStatusDisbursement
+// }
+
+// func UATScenario6b(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to get a Top Up response (Timeout) and then the transaction status was obtained via status inquiry (Transaction failed)
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628521470963"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpInquiryStatusDisbursement
+// 	reqTopUpStatus := dana.RequestCustomerTopUpInquiryStatusDisbursement{
+// 		OriginalPartnerReferenceNo: uuid,
+// 		ServiceCode:                "38",
+// 	}
+
+// 	respTopUpStatus, err := danaClient.CustomerTopUpInquiryStatusDisbursement(ctx, reqTopUpStatus)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+// 	log.Println("CustomerTopUpInquiryStatusDisbursement Response:", respTopUpStatus, "\n")
+// 	// EndCustomerTopUpInquiryStatusDisbursement
+// }
+
+// func UATScenario7(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to make account inquiry on blocked account (frozen account)
+// 	uuid := uuid.NewString()
+// 	phone_number := "628123456667"
+// 	amount := 1
+
+// 	// AccountInquiryTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
+// 	// End AccountInquiryTopUpDisbursement
+// }
+
+// func UATScenario8a(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to Top Up on a blocked account (frozen account)
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628996647679"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario8b(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to make account inquiry on unregistered account
+// 	uuid := uuid.NewString()
+// 	phone_number := "628152768647"
+// 	amount := 1
+
+// 	// AccountInquiryTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
+// 	// End AccountInquiryTopUpDisbursement
+// }
+
+// func UATScenario9(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to make account inquiry on unregistered account
+// 	uuid := uuid.NewString()
+// 	phone_number := "62811742234"
+// 	amount := 21000000
+
+// 	// AccountInquiryTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("AccountInquiryTopUpDisbursement Response:", resp, "\n")
+// 	// End AccountInquiryTopUpDisbursement
+// }
+
+// func UATScenario10(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to Top Up on a blocked account (frozen account)
+
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "6287825574103"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario11a(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Any Services
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "6287720766990"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+// }
+
+// func UATScenario12(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Successfully Top Up to make inconsistent requests
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "6287720766990"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	reqTopUp2 := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)+1),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	respTopUp2, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp2)
+// 	if err != nil {
+// 		log.Fatalln(err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp2, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario13(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Failed to get top up status due to internal server error
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628551008794"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario14(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Getting an abnormal response
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628551001237"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
+
+// func UATScenario15(ctx context.Context, danaClient *dana.Client) {
+// 	// Scenario Name: Getting an abnormal response
+// 	var (
+// 		respTopUp *dana.ResponseCustomerTopUpDisbursement
+// 		err       error
+// 	)
+
+// 	uuid := uuid.NewString()
+// 	phone_number := "628121111111"
+// 	amount := 1
+
+// 	// InquiryCustomerTopUpDisbursement
+// 	req := dana.RequestAccountInquiryTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	resp, err := danaClient.AccountInquiryTopUpDisbursement(ctx, req)
+// 	if err != nil {
+// 		log.Fatalln(resp)
+// 	}
+
+// 	log.Println("InquiryCustomerTopUpDisbursement Response:", resp, "\n")
+// 	// End InquiryCustomerTopUpDisbursement
+
+// 	// CustomerTopUpDisbursement
+// 	// Retry intervals
+// 	retryIntervals := []time.Duration{
+// 		5 * time.Second,
+// 		10 * time.Second,
+// 		20 * time.Second,
+// 		40 * time.Second,
+// 		60 * time.Second,
+// 	}
+
+// 	reqTopUp := dana.RequestCustomerTopUpDisbursement{
+// 		PartnerReferenceNo: uuid,
+// 		CustomerNumber:     phone_number,
+// 		Amount: dana.RequestCustomerTopUpDisbursementAmount{
+// 			Value:    fmt.Sprintf("%.2f", float64(amount)),
+// 			Currency: "IDR",
+// 		},
+// 		FeeAmount: dana.RequestCustomerTopUpDisbursementFeeAmount{
+// 			Value:    "0.00",
+// 			Currency: "IDR",
+// 		},
+// 		TransactionDate: dana.GenerateTimestamp(),
+// 		AdditionalInfo: dana.RequestCustomerTopUpDisbursementAdditionalInfo{
+// 			FundType: "AGENT_TOPUP_FOR_USER_SETTLE",
+// 		},
+// 	}
+
+// 	for i, interval := range retryIntervals {
+// 		respTopUp, err := danaClient.CustomerTopUpDisbursement(ctx, reqTopUp)
+// 		if err == nil {
+// 			log.Println("CustomerTopUpDisbursement Response:", respTopUp)
+// 			break
+// 		}
+
+// 		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, interval)
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Println("Context canceled or deadline exceeded, aborting retries.")
+// 			return
+// 		case <-time.After(interval):
+// 			// continue to next retry
+// 		}
+// 	}
+
+// 	if err != nil {
+// 		log.Fatalf("Final attempt failed: %v\n", err)
+// 	}
+
+// 	log.Println("CustomerTopUpDisbursement Response:", respTopUp, "\n")
+// 	// EndCustomerTopUpDisbursement
+// }
