@@ -1,13 +1,11 @@
 package dana
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -83,148 +81,8 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		publicKey:    conf.PublicKey,
 		privateKey:   conf.PrivateKey,
 		location:     jakartaLoc,
+		debug:        conf.Debug,
 	}, nil
-}
-
-// Deprecated
-func (c *Client) doRequest(ctx context.Context, method string, path string, body interface{}, headers map[string]string) (*ResponseAPI, error) {
-	var resp *resty.Response
-	var err error
-
-	timestamp := c.generateTimestamp()
-	bodyStringify, err := json.Marshal(body)
-	if err != nil {
-		if c.debug {
-			fmt.Println("Error:", err)
-		}
-		return nil, fmt.Errorf("error dana client: %w", err)
-	}
-
-	signature, err := getSignature(method, path, timestamp, string(bodyStringify))
-	if err != nil {
-		fmt.Println("Error:", err)
-		return nil, fmt.Errorf("error dana client: %w", err)
-	}
-
-	// Begin to compose request client
-	client := c.httpClient
-
-	client.SetDebug(false)
-
-	req := client.R().
-		SetHeader("X-TIMESTAMP", timestamp).
-		SetHeader("X-SIGNATURE", signature).
-		SetHeader("X-PARTNER-ID", c.clientID).
-		SetHeader("X-EXTERNAL-ID", time.Now().Format("02012006")).
-		SetHeader("CHANNEL-ID", c.merchantID)
-
-	for key, value := range headers {
-		req.SetHeader(key, value)
-	}
-
-	req.SetContext(ctx)
-
-	req.SetResult(c.ResponseEntity)
-
-	switch method {
-	case http.MethodGet:
-		resp, err = req.Get(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
-	case http.MethodPost:
-		if body != nil {
-			req = req.SetBody(body)
-		}
-		resp, err = req.Post(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
-	case http.MethodPut:
-		if body != nil {
-			req = req.SetBody(body)
-		}
-		resp, err = req.Put(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
-	case http.MethodPatch:
-		if body != nil {
-			req = req.SetBody(body)
-		}
-		resp, err = req.Patch(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
-	case http.MethodDelete:
-		resp, err = req.Delete(c.baseURL.ResolveReference(&url.URL{Path: path}).String())
-	default:
-		return nil, fmt.Errorf("unsupported method: %s", method)
-	}
-
-	// log.Println("==========")
-	// log.Println("========== DANA API DEBUG (", path, ") ==========")
-	// log.Println("===== REQUEST =====")
-	// log.Printf("Request Details:\nURL Endpoint: %s\nHeader Request: %s\nRequest Body: %s",
-	// 	c.baseURL.ResolveReference(&url.URL{Path: path}).String(),
-	// 	func() string {
-	// 		flatHeaders := make(map[string]string)
-	// 		for key, values := range req.Header {
-	// 			if len(values) > 0 {
-	// 				flatHeaders[key] = values[0]
-	// 			}
-	// 		}
-	// 		headerJSON, err := json.Marshal(flatHeaders)
-	// 		if err != nil {
-	// 			return fmt.Sprintf("Error marshaling headers to JSON: %v", err)
-	// 		}
-	// 		return string(headerJSON)
-	// 	}(),
-	// 	string(bodyStringify),
-	// )
-	// log.Println("===== RESPONSE =====")
-	// log.Println("Response Body:", string(resp.Body()))
-	// log.Println("==========")
-
-	// Base response wrapper
-	response := &ResponseAPI{
-		StatusCode: resp.StatusCode(),
-		RawBody:    resp.Body(),
-		Result:     resp.Result(),
-	}
-
-	// Handle request error
-	if err != nil {
-		response.Error = err
-		return response, err
-	}
-
-	if resp.IsError() {
-		var danaErr Error
-		if err := json.Unmarshal(resp.Body(), &danaErr); err != nil {
-
-			if resp.StatusCode() == http.StatusGatewayTimeout {
-				return &ResponseAPI{
-					StatusCode:   resp.StatusCode(),
-					RawBody:      resp.Body(),
-					Error:        fmt.Errorf("failed to decode error body: %w", err),
-					ResponseCode: "UNEXPECTED",
-					CodeInfo:     GetDanaResponseInfo("UNEXPECTED"),
-				}, context.DeadlineExceeded
-			}
-
-			return &ResponseAPI{
-				StatusCode:   resp.StatusCode(),
-				RawBody:      resp.Body(),
-				Error:        fmt.Errorf("failed to decode error body: %w", err),
-				ResponseCode: "UNEXPECTED",
-				CodeInfo:     GetDanaResponseInfo("UNEXPECTED"),
-			}, err
-		}
-
-		// code := danaErr.Code
-		// return &ResponseAPI{
-		// 	StatusCode:   resp.StatusCode(),
-		// 	RawBody:      resp.Body(),
-		// 	Error:        &danaErr,
-		// 	ResponseCode: code,
-		// 	CodeInfo:     GetDanaResponseInfo(code),
-		// }, &danaErr
-		return nil, &Error{
-			Code:    danaErr.Code,
-			Message: danaErr.Message,
-		}
-	}
-
-	return response, nil
 }
 
 func (c *Client) generateTimestamp() string {
@@ -237,7 +95,7 @@ func (c *Client) generateTimestamp() string {
 }
 
 func (c *Client) prepareHttpRequest() *resty.Request {
-	client := c.httpClient.R().
+	client := c.httpClient.SetDebug(c.debug).R().
 		SetHeader("Accept", "application/json").
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-PARTNER-ID", c.clientID).
@@ -252,14 +110,16 @@ func (c *Client) prepareHeaders(method, path string, body interface{}) (map[stri
 	bodyStringify, err := json.Marshal(body)
 	if err != nil {
 		if c.debug {
-			fmt.Println("Error:", err)
+			fmt.Println("Error bodyStringify:", err)
 		}
 		return nil, fmt.Errorf("error dana client: %w", err)
 	}
 
 	signature, err := c.getSignature(method, path, timestamp, string(bodyStringify))
 	if err != nil {
-		fmt.Println("Error:", err)
+		if c.debug {
+			fmt.Println("Error getSignature: ", err)
+		}
 		return nil, fmt.Errorf("error dana client: %w", err)
 	}
 

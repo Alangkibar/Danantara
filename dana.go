@@ -2,7 +2,6 @@ package dana
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -29,9 +28,13 @@ var typeString = map[EnvironmentType]string{
 }
 
 const (
-	defaultRequestTimeout               = 80 * time.Second
+	defaultRequestTimeout = 80 * time.Second
+
+	// API Paths
 	paymentGatewayDropInCreateOrderPath = "/v1.0/payment-gateway/payment.htm"
 	accountInquiryTopUpDisbursementPath = "/v1.0/emoney/account-inquiry.htm"
+	customerTopUpDisbursementPath       = "/v1.0/emoney/topup.htm"
+	customerTopUpInquiryStatusPath      = "/v1.0/emoney/topup-status.htm"
 )
 
 var (
@@ -39,6 +42,20 @@ var (
 )
 
 var RsaPrivateKey []byte
+
+type Dana interface {
+	// Account Inquiry (Disbursement)
+	AccountInquiryTopUpDisbursement(ctx context.Context, req RequestAccountInquiryTopUpDisbursement) (*ResponseAccountInquiryTopUpDisbursement, error)
+
+	// Customer Top Up (Disbursement)
+	CustomerTopUpDisbursement(ctx context.Context, req RequestCustomerTopUpDisbursement) (*ResponseCustomerTopUpDisbursement, error)
+
+	// Customer Top Up Inquiry Status (Disbursement)
+	CustomerTopUpInquiryStatusDisbursement(ctx context.Context, req RequestCustomerTopUpInquiryStatusDisbursement) (*ResponseCustomerTopUpInquiryStatusDisbursement, error)
+
+	// Payment Gateway Drop-In Create Order
+	PaymentGatewayDropInCreateOrder(ctx context.Context, req RequestPaymentGatewayDropInCreateOrder) (*ResponsePaymentGatewayDropInCreateOrder, error)
+}
 
 // Refer to this documentation: https://dashboard.dana.id/api-docs/read/107
 func (c *Client) AccountInquiryTopUpDisbursement(ctx context.Context, req RequestAccountInquiryTopUpDisbursement) (*ResponseAccountInquiryTopUpDisbursement, error) {
@@ -51,7 +68,7 @@ func (c *Client) AccountInquiryTopUpDisbursement(ctx context.Context, req Reques
 		TransactionDate:    c.generateTimestamp(),
 		AdditionalInfo:     req.AdditionalInfo,
 	}
-	headers, err := c.prepareHeaders(http.MethodPost, paymentGatewayDropInCreateOrderPath, body)
+	headers, err := c.prepareHeaders(http.MethodPost, accountInquiryTopUpDisbursementPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +76,11 @@ func (c *Client) AccountInquiryTopUpDisbursement(ctx context.Context, req Reques
 		httpRequest.SetHeader(key, value)
 	}
 
-	var result ResponsePaymentGatewayDropInCreateOrder
-	httpRequest.SetResult(result)
+	httpRequest.SetBody(body)
+	httpRequest.SetResult(&ResponseAccountInquiryTopUpDisbursement{})
 	httpRequest.SetContext(ctx)
 
-	resp, err := httpRequest.Post(paymentGatewayDropInCreateOrderPath)
+	resp, err := httpRequest.Post(accountInquiryTopUpDisbursementPath)
 	if err != nil {
 		return nil, &Error{
 			Code:     "ERR000",
@@ -76,47 +93,79 @@ func (c *Client) AccountInquiryTopUpDisbursement(ctx context.Context, req Reques
 		return nil, wrapError(resp)
 	}
 
-	return &result, nil
+	return resp.Result().(*ResponseAccountInquiryTopUpDisbursement), nil
 }
 
 // Refer to this documentation: https://dashboard.dana.id/api-docs/read/119
 func (c *Client) CustomerTopUpDisbursement(ctx context.Context, req RequestCustomerTopUpDisbursement) (*ResponseCustomerTopUpDisbursement, error) {
-	var result ResponseCustomerTopUpDisbursement
-	c.ResponseEntity = &result
+	httpRequest := c.prepareHttpRequest()
+	body := requestCustomerTopUpDisbursement{
+		PartnerReferenceNo: req.PartnerReferenceNo,
+		CustomerNumber:     req.CustomerNumber,
+		Amount:             req.Amount,
+		FeeAmount:          req.FeeAmount,
+		TransactionDate:    c.generateTimestamp(),
+		AdditionalInfo:     req.AdditionalInfo,
+	}
 
-	apiResp, err := c.doRequest(ctx, http.MethodPost, "/v1.0/emoney/topup.htm", req, nil)
+	headers, err := c.prepareHeaders(http.MethodPost, customerTopUpDisbursementPath, body)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range headers {
+		httpRequest.SetHeader(key, value)
+	}
 
-	if apiResp.RawBody != nil {
-		if err := json.Unmarshal(apiResp.RawBody, &result); err != nil {
-			return &result, err
+	httpRequest.SetBody(body)
+	httpRequest.SetResult(&ResponseCustomerTopUpDisbursement{})
+	httpRequest.SetContext(ctx)
+
+	resp, err := httpRequest.Post(customerTopUpDisbursementPath)
+	if err != nil {
+		return nil, &Error{
+			Code:     "ERR000",
+			Message:  "error",
+			RawError: fmt.Errorf("error dana client: %w", err),
 		}
 	}
 
-	if err != nil {
-		return &result, err
+	if resp.IsError() {
+		return nil, wrapError(resp)
 	}
 
-	return &result, nil
+	return resp.Result().(*ResponseCustomerTopUpDisbursement), nil
 }
 
 // Refer to this documentation: https://dashboard.dana.id/api-docs/read/121
 func (c *Client) CustomerTopUpInquiryStatusDisbursement(ctx context.Context, req RequestCustomerTopUpInquiryStatusDisbursement) (*ResponseCustomerTopUpInquiryStatusDisbursement, error) {
-	var result ResponseCustomerTopUpInquiryStatusDisbursement
-	c.ResponseEntity = &result
+	httpRequest := c.prepareHttpRequest()
 
-	apiResp, err := c.doRequest(ctx, http.MethodPost, "/v1.0/emoney/topup-status.htm", req, nil)
+	headers, err := c.prepareHeaders(http.MethodPost, customerTopUpInquiryStatusPath, req)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range headers {
+		httpRequest.SetHeader(key, value)
+	}
 
-	if apiResp.RawBody != nil {
-		if err := json.Unmarshal(apiResp.RawBody, &result); err != nil {
-			return &result, err
+	httpRequest.SetBody(req)
+	httpRequest.SetResult(&ResponseCustomerTopUpInquiryStatusDisbursement{})
+	httpRequest.SetContext(ctx)
+
+	resp, err := httpRequest.Post(customerTopUpInquiryStatusPath)
+	if err != nil {
+		return nil, &Error{
+			Code:     "ERR000",
+			Message:  "error",
+			RawError: fmt.Errorf("error dana client: %w", err),
 		}
 	}
 
-	if err != nil {
-		return &result, err
+	if resp.IsError() {
+		return nil, wrapError(resp)
 	}
 
-	return &result, nil
+	return resp.Result().(*ResponseCustomerTopUpInquiryStatusDisbursement), nil
 }
 
 // Refer to this documentation: https://dashboard.dana.id/api-docs/read/243
@@ -134,19 +183,25 @@ func (c *Client) PaymentGatewayDropInCreateOrder(ctx context.Context, req Reques
 		PayOptionDetails:   req.PayOptionDetails,
 		AdditionalInfo:     req.AdditionalInfo,
 	}
+
 	headers, err := c.prepareHeaders(http.MethodPost, paymentGatewayDropInCreateOrderPath, body)
 	if err != nil {
+		if c.debug {
+			fmt.Println("Error prepare headers: ", err)
+		}
 		return nil, err
 	}
 	for key, value := range headers {
 		httpRequest.SetHeader(key, value)
 	}
 
-	var result ResponsePaymentGatewayDropInCreateOrder
-	httpRequest.SetResult(result)
+	httpRequest.SetBody(body)
+
+	httpRequest.SetResult(&ResponsePaymentGatewayDropInCreateOrder{})
 	httpRequest.SetContext(ctx)
 
 	resp, err := httpRequest.Post(paymentGatewayDropInCreateOrderPath)
+
 	if err != nil {
 		return nil, &Error{
 			Code:     "ERR000",
@@ -159,5 +214,5 @@ func (c *Client) PaymentGatewayDropInCreateOrder(ctx context.Context, req Reques
 		return nil, wrapError(resp)
 	}
 
-	return &result, nil
+	return resp.Result().(*ResponsePaymentGatewayDropInCreateOrder), nil
 }

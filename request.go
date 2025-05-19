@@ -12,20 +12,10 @@ type RequestCustomerTopUpDisbursement struct {
 type requestCustomerTopUpDisbursement struct {
 	PartnerReferenceNo string                                         `json:"partnerReferenceNo"`
 	CustomerNumber     string                                         `json:"customerNumber"`
-	Amount             RequestCustomerTopUpDisbursementAmount         `json:"amount"`
-	FeeAmount          RequestCustomerTopUpDisbursementFeeAmount      `json:"feeAmount"`
+	Amount             Currency                                       `json:"amount"`
+	FeeAmount          Currency                                       `json:"feeAmount"`
 	TransactionDate    string                                         `json:"transactionDate"`
 	AdditionalInfo     RequestCustomerTopUpDisbursementAdditionalInfo `json:"additionalInfo"`
-}
-
-type RequestCustomerTopUpDisbursementAmount struct {
-	Value    string `json:"value"`
-	Currency string `json:"currency"`
-}
-
-type RequestCustomerTopUpDisbursementFeeAmount struct {
-	Value    string `json:"value"`
-	Currency string `json:"currency"`
 }
 
 type RequestCustomerTopUpDisbursementAdditionalInfo struct {
@@ -46,7 +36,7 @@ type RequestCustomerTopUpInquiryStatusDisbursement struct {
 type RequestPaymentGatewayDropInCreateOrder struct {
 	PartnerReferenceNo string                       `json:"partnerReferenceNo"`           // Mandatory, max 64
 	SubMerchantId      *string                      `json:"subMerchantId,omitempty"`      // Optional, max 32
-	Amount             PaymentGatewayAmount         `json:"amount"`                       // Mandatory
+	Amount             Currency                     `json:"amount"`                       // Mandatory
 	ExternalStoreId    *string                      `json:"externalStoreId,omitempty"`    // Optional, max 64
 	ValidUpTo          *string                      `json:"validUpTo,omitempty"`          // Optional, max 25, format: YYYY-MM-DDTHH:mm:ss+07:00
 	DisabledPayMethods *string                      `json:"disabledPayMethods,omitempty"` // Optional, max 64
@@ -125,9 +115,12 @@ type PaymentGatewayBuyerInfo struct {
 
 type PaymentGatewayGoodsInfo struct {
 	// Define goods info fields
-	Name     string  `json:"name"`
-	Quantity int     `json:"quantity"`
-	Price    float64 `json:"price"`
+	Unit            string   `json:"unit"`
+	Category        string   `json:"category"`
+	Description     string   `json:"description"`
+	Quantity        string   `json:"quantity"`
+	Price           Currency `json:"price"`
+	MerchantGoodsId string   `json:"merchantGoodsId"`
 }
 
 type PaymentGatewayShippingInfo struct {
